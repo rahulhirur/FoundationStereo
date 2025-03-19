@@ -49,9 +49,11 @@ if __name__=="__main__":
   logging.info(f"Using pretrained model from {ckpt_dir}")
 
   model = FoundationStereo(args)
-
+  print('-------------------------1-------------------------')
   ckpt = torch.load(ckpt_dir)
+  print('-------------------------2-------------------------')
   logging.info(f"ckpt global_step:{ckpt['global_step']}, epoch:{ckpt['epoch']}")
+  
   model.load_state_dict(ckpt['model'])
 
   model.cuda()
@@ -59,7 +61,11 @@ if __name__=="__main__":
 
   code_dir = os.path.dirname(os.path.realpath(__file__))
   img0 = imageio.imread(args.left_file)
+  if img0.shape[-1] == 4:
+    img0 = img0[:, :, :3]
   img1 = imageio.imread(args.right_file)
+  if img1.shape[-1] == 4:
+    img1 = img1[:, :, :3]
   scale = args.scale
   assert scale<=1, "scale must be <=1"
   img0 = cv2.resize(img0, fx=scale, fy=scale, dsize=None)
@@ -72,6 +78,7 @@ if __name__=="__main__":
   img1 = torch.as_tensor(img1).cuda().float()[None].permute(0,3,1,2)
   padder = InputPadder(img0.shape, divis_by=32, force_square=False)
   img0, img1 = padder.pad(img0, img1)
+  print('-------------------------3-------------------------')
 
   with torch.cuda.amp.autocast(True):
     if not args.hiera:
@@ -107,6 +114,7 @@ if __name__=="__main__":
     o3d.io.write_point_cloud(f'{args.out_dir}/cloud.ply', pcd)
     logging.info(f"PCL saved to {args.out_dir}")
 
+    print('-------------------------4-------------------------')
     if args.denoise_cloud:
       logging.info("denoise point cloud...")
       cl, ind = pcd.remove_radius_outlier(nb_points=args.denoise_nb_points, radius=args.denoise_radius)
