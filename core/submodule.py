@@ -452,6 +452,7 @@ class FeatureAtt(nn.Module):
         '''
         feat_att = self.feat_att(feat).unsqueeze(2)   #(B,C,1,H,W)
         cv = torch.sigmoid(feat_att)*cv
+        print('---------------FeatAtt_Vastr--------------')
         return cv
 
 def context_upsample(disp_low, up_weights):
