@@ -192,18 +192,23 @@ class FoundationStereo(nn.Module):
 
 
     def forward(self, image1, image2, iters=12, flow_init=None, test_mode=False, low_memory=False, init_disp=None):
+        print('---------------1--------------')
+        
         """ Estimate disparity between pair of frames """
         B = len(image1)
         low_memory = low_memory or (self.args.get('low_memory', False))
         image1 = normalize_image(image1)
         image2 = normalize_image(image2)
+        print('---------------2--------------')
+        
         with autocast(enabled=self.args.mixed_precision):
             out, vit_feat = self.feature(torch.cat([image1, image2], dim=0))
             vit_feat = vit_feat[:B]
             features_left = [o[:B] for o in out]
             features_right = [o[B:] for o in out]
             stem_2x = self.stem_2(image1)
-
+            print('---------------3--------------')
+            
             gwc_volume = build_gwc_volume(features_left[0], features_right[0], self.args.max_disp//4, self.cv_group)  # Group-wise correlation volume (B, N_group, max_disp, H, W)
             left_tmp = self.proj_cmb(features_left[0])
             right_tmp = self.proj_cmb(features_right[0])
@@ -213,12 +218,15 @@ class FoundationStereo(nn.Module):
             comb_volume = self.corr_stem(comb_volume)
             comb_volume = self.corr_feature_att(comb_volume, features_left[0])
             comb_volume = self.cost_agg(comb_volume, features_left)
-
+            print('---------------4--------------')
+            
             # Init disp from geometry encoding volume
             prob = F.softmax(self.classifier(comb_volume).squeeze(1), dim=1)  #(B, max_disp, H, W)
             if init_disp is None:
               init_disp = disparity_regression(prob, self.args.max_disp//4)  # Weighted  sum of disparity
 
+            print('---------------5--------------')
+            
             cnet_list = self.cnet(image1, vit_feat=vit_feat, num_layers=self.args.n_gru_layers)   #(1/4, 1/8, 1/16)
             cnet_list = list(cnet_list)
             net_list = [torch.tanh(x[0]) for x in cnet_list]   # Hidden information
@@ -231,7 +239,8 @@ class FoundationStereo(nn.Module):
         coords = torch.arange(w, dtype=torch.float, device=init_disp.device).reshape(1,1,w,1).repeat(b, h, 1, 1)  # (B,H,W,1) Horizontal only
         disp = init_disp.float()
         disp_preds = []
-
+        print('---------------6--------------')
+        
         # GRUs iterations to update disparity (1/4 resolution)
         for itr in range(iters):
             disp = disp.detach()
@@ -242,11 +251,11 @@ class FoundationStereo(nn.Module):
             disp = disp + delta_disp.float()
             if test_mode and itr < iters-1:
                 continue
-
+            
             # upsample predictions
             disp_up = self.upsample_disp(disp.float(), mask_feat_4.float(), stem_2x.float())
             disp_preds.append(disp_up)
-
+        print('---------------7--------------')
 
         if test_mode:
             return disp_up
