@@ -341,26 +341,32 @@ class Feature(nn.Module):
         self.d_out = [chans[0]*2+128, chans[1]*2, chans[2]*2, chans[3]]
 
     def forward(self, x):
+        print('------------------F1---------------------')
         B,C,H,W = x.shape
         divider = np.lcm(self.patch_size, 16)
         H_resize, W_resize = get_resize_keep_aspect_ratio(H,W, divider=divider, max_H=1344, max_W=1344)
+        print('------------------F2---------------------')
         x_in_ = F.interpolate(x, size=(H_resize, W_resize), mode='bicubic', align_corners=False)
         self.dino = self.dino.eval()
+        print('------------------F3---------------------')
         with torch.no_grad():
           output = self.dino(x_in_)
         vit_feat = output['out']
         vit_feat = F.interpolate(vit_feat, size=(H//4,W//4), mode='bilinear', align_corners=True)
         x = self.stem(x)
+        print('------------------F4---------------------')
         x4 = self.stages[0](x)
         x8 = self.stages[1](x4)
         x16 = self.stages[2](x8)
         x32 = self.stages[3](x16)
+        print('------------------F5---------------------')
 
         x16 = self.deconv32_16(x32, x16)
         x8 = self.deconv16_8(x16, x8)
         x4 = self.deconv8_4(x8, x4)
         x4 = torch.cat([x4, vit_feat], dim=1)
         x4 = self.conv4(x4)
+        print('------------------F6---------------------')
         return [x4, x8, x16, x32], vit_feat
 
 
